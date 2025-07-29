@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AvaloniaProject">
+    <option name="projectPerEditor">
+      <map>
+        <entry key="AvaloniaMobileTest/App.axaml" value="AvaloniaMobileTest.Browser/AvaloniaMobileTest.Browser.csproj" />
+        <entry key="AvaloniaMobileTest/Views/MainView.axaml" value="AvaloniaMobileTest.Browser/AvaloniaMobileTest.Browser.csproj" />
+        <entry key="AvaloniaMobileTest/Views/MainWindow.axaml" value="AvaloniaMobileTest.Browser/AvaloniaMobileTest.Browser.csproj" />
+      </map>
+    </option>
+  </component>
+</project>

@@ -5,6 +5,9 @@
         <SupportedOSPlatformVersion>13.0</SupportedOSPlatformVersion>
         <Nullable>enable</Nullable>
     </PropertyGroup>
+    <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+      <CodesignKey>Apple Development: Andrew Cummings (Q9RM7J24BA)</CodesignKey>
+    </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Avalonia.iOS"/>
