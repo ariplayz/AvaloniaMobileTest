@@ -1,4 +1,11 @@
 using Avalonia.Controls;
+using Avalonia;
+using Avalonia.Platform;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Runtime.InteropServices;
 
 namespace AvaloniaMobileTest.Views;
 
@@ -8,9 +15,8 @@ public partial class MainView : UserControl
     private Dictionary<string, NumericUpDown> controlMap = new();
     private bool isInitialized = false;
 
-    public MainWindow()
+    public MainView()
     {
-        // First initialize the component
         InitializeComponent();
         
         try
@@ -30,7 +36,7 @@ public partial class MainView : UserControl
             LoadValuesFromCsv();
             
             // Calculate initial total
-            calculate();
+            Calculate();
         }
         catch (Exception ex)
         {
@@ -40,28 +46,36 @@ public partial class MainView : UserControl
 
     private static string GetAppDataPath()
     {
-        // Base application name
         const string appName = "PointsSlip";
+        string appDataPath;
 
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        if (RuntimeInformation.FrameworkDescription.Contains("Android"))
         {
-            // For macOS, use the proper Application Support directory
+            appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Personal), appName);
+        }
+        else if (RuntimeInformation.FrameworkDescription.Contains("iOS"))
+        {
+            appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), appName);
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
             string userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            return Path.Combine(userHome, "Library", "Application Support", appName);
+            appDataPath = Path.Combine(userHome, "Library", "Application Support", appName);
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                appName);
+            appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), appName);
         }
         else
         {
-            return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                appName);
+            appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), appName);
         }
+
+        return appDataPath;
     }
+
+
+
 
     private void InitializeControlMap()
     {
@@ -95,93 +109,90 @@ public partial class MainView : UserControl
         
         try
         {
-            var data = new List<string>();
-            // Add current date as the first line
-            data.Add(DateTime.Now.Date.ToString("yyyy-MM-dd"));
-            data.Add(string.Join(",", controlMap.Keys));
-            data.Add(string.Join(",", controlMap.Values.Select(control => 
-                ((double)(control?.Value ?? 0)).ToString("F0"))));
-
-        File.WriteAllLines(CSV_FILE_PATH, data);
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Error saving values: {ex.Message}");
-    }
-}
-
-private void LoadValuesFromCsv()
-{
-    try
-    {
-        if (!File.Exists(CSV_FILE_PATH))
-        {
-            Console.WriteLine("CSV file not found, initializing with zeros");
-            InitializeNumericControls();
-            SaveValuesToCsv(); // Save initial state with current date
-            return;
-        }
-
-        string[] lines = File.ReadAllLines(CSV_FILE_PATH);
-        Console.WriteLine($"Read {lines.Length} lines from CSV");
-        
-        // Check if we have at least 3 lines (date, headers, values)
-        if (lines.Length >= 3)
-        {
-            // Parse the saved date
-            if (DateTime.TryParse(lines[0], out DateTime savedDate))
+            var data = new List<string>
             {
-                // If the saved date is not today, initialize with zeros
-                if (savedDate.Date != DateTime.Now.Date)
+                DateTime.Now.Date.ToString("yyyy-MM-dd"),
+                string.Join(",", controlMap.Keys),
+                string.Join(",", controlMap.Values.Select(control => ((double)(control?.Value ?? 0)).ToString("F0")))
+            };
+
+                        File.WriteAllLines(CSV_FILE_PATH, data);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving values: {ex.Message}");
+        }
+    }
+
+    private void LoadValuesFromCsv()
+    {
+        try
+        {
+            if (!File.Exists(CSV_FILE_PATH))
+            {
+                Console.WriteLine("CSV file not found, initializing with zeros");
+                InitializeNumericControls();
+                SaveValuesToCsv(); // Save initial state with current date
+                return;
+            }
+
+            string[] lines = File.ReadAllLines(CSV_FILE_PATH);
+            Console.WriteLine($"Read {lines.Length} lines from CSV");
+            
+            if (lines.Length >= 3)
+            {
+                if (DateTime.TryParse(lines[0], out DateTime savedDate))
                 {
-                    Console.WriteLine("New day detected, resetting values to zero");
+                    if (savedDate.Date != DateTime.Now.Date)
+                    {
+                        Console.WriteLine("New day detected, resetting values to zero");
+                        InitializeNumericControls();
+                        SaveValuesToCsv(); // Save the reset state with current date
+                        return;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("Invalid date format in CSV, resetting values");
                     InitializeNumericControls();
-                    SaveValuesToCsv(); // Save the reset state with current date
+                    SaveValuesToCsv();
                     return;
+                }
+
+                string[] headers = lines[1].Split(',');
+                string[] values = lines[2].Split(',');
+
+                Console.WriteLine($"Found {headers.Length} headers and {values.Length} values");
+
+                for (int i = 0; i < headers.Length && i < values.Length; i++)
+                {
+                    if (controlMap.TryGetValue(headers[i], out var control) && 
+                        control != null && 
+                        double.TryParse(values[i], out double value))
+                    {
+                        control.Value = (decimal)value;
+                        Console.WriteLine($"Loaded {headers[i]} = {value}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Failed to load value for {headers[i]}");
+                    }
                 }
             }
             else
             {
-                Console.WriteLine("Invalid date format in CSV, resetting values");
+                Console.WriteLine("CSV file has insufficient lines");
                 InitializeNumericControls();
-                SaveValuesToCsv();
-                return;
-            }
-
-            string[] headers = lines[1].Split(',');
-            string[] values = lines[2].Split(',');
-
-            Console.WriteLine($"Found {headers.Length} headers and {values.Length} values");
-
-            for (int i = 0; i < headers.Length && i < values.Length; i++)
-            {
-                if (controlMap.TryGetValue(headers[i], out var control) && 
-                    control != null && 
-                    double.TryParse(values[i], out double value))
-                {
-                    control.Value = (decimal)value;
-                    Console.WriteLine($"Loaded {headers[i]} = {value}");
-                }
-                else
-                {
-                    Console.WriteLine($"Failed to load value for {headers[i]}");
-                }
+                SaveValuesToCsv(); // Save initial state with current date
             }
         }
-        else
+        catch (Exception ex)
         {
-            Console.WriteLine("CSV file has insufficient lines");
+            Console.WriteLine($"Error loading values: {ex.Message}");
             InitializeNumericControls();
             SaveValuesToCsv(); // Save initial state with current date
         }
     }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Error loading values: {ex.Message}");
-        InitializeNumericControls();
-        SaveValuesToCsv(); // Save initial state with current date
-    }
-}
 
     private void InitializeNumericControls()
     {
@@ -197,11 +208,11 @@ private void LoadValuesFromCsv()
     private void OnValueChanged(object? sender, NumericUpDownValueChangedEventArgs e)
     {
         if (!isInitialized) return;
-        calculate();
+        Calculate();
         SaveValuesToCsv();
     }
 
-    public void calculate()
+    public void Calculate()
     {
         double pages = (double)(pagesIn?.Value ?? 0);
         double pagesbonusnum = pages / 50;
@@ -246,7 +257,7 @@ private void LoadValuesFromCsv()
         double penaltypoints = penalty * -200;
         
         double points = pagepoints + lectures + passcheckoutpoints + findmupoints + checkoutdemopoints + 
-                       wordpoints + drillpoints + practicalpoints + demopoints + coursepoints + penaltypoints;
+                        wordpoints + drillpoints + practicalpoints + demopoints + coursepoints + penaltypoints;
         
         if (display != null)
         {
@@ -254,3 +265,5 @@ private void LoadValuesFromCsv()
         }
     }
 }
+
+
